@@ -47,7 +47,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/tests", testRoutes);
 app.use("/api/results", resultRoutes);
 app.use("/api/proctoring", proctoringRoutes);
-app.use("/api/invitations", invitationRoutes); // NEW
+app.use("/api/invitations", InvitationRoutes); // NEW
 app.use('/api/question-types', questionTypeRoutes);
 app.use('/api/users', userRoutes); // NEW: Add this line
 
