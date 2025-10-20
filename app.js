@@ -10,7 +10,7 @@ const testRoutes = require("./routes/testRoutes");
 const resultRoutes = require("./routes/resultRoutes");
 const resultController = require("./controllers/resultController");
 const proctoringRoutes = require("./routes/proctoringRoutes");
-const invitationRoutes = require("./routes/invitationRoutes"); // NEW
+const invitationRoutes = require("./routes/InvitationRoutes"); // NEW
 const questionTypeRoutes = require('./routes/questionTypeRoutes');
 const userRoutes = require('./routes/userRoutes'); // NEW: Add this line
 
