@@ -21,12 +21,7 @@ dotenv.config();
 const app = express();
 
 // Middleware
-app.use(cors({
-  origin: process.env.FRONTEND_URL || "https://suite-test-frontend.vercel.app/", // or your Vercel frontend URL
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-}));
-
+app.use(cors());
 app.use(express.json());
 
 // Add database to request object - using your existing database class
