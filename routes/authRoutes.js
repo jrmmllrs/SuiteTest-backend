@@ -6,19 +6,16 @@ const { authMiddleware } = require("../middleware/auth");
 const router = express.Router();
 
 // GET /api/users/departments - Fetch all active departments
-router.get("/departments", async (req, res) => {
+router.get("/departments", authMiddleware, async (req, res) => {
   try {
     const db = database.getPool();
-
     const [departments] = await db.execute(
       "SELECT id, department_name FROM departments WHERE is_active = 1 ORDER BY department_name ASC"
     );
 
-    console.log("Departments fetched:", departments.length); // Debug log
-
     res.json({
       success: true,
-      departments: departments,
+      departments,
     });
   } catch (error) {
     console.error("Error fetching departments:", error);
@@ -29,6 +26,7 @@ router.get("/departments", async (req, res) => {
     });
   }
 });
+
 
 router.post("/register", (req, res) => authController.register(req, res));
 router.post("/login", (req, res) => authController.login(req, res));
