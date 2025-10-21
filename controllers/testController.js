@@ -473,7 +473,72 @@ class TestController {
   }
 
   // ============ Test Status & Progress ============
+  // ============ Test Status & Progress ============
 
+  async getActiveTest(req, res) {
+    try {
+      const db = database.getPool();
+      const userId = req.user.id;
+
+      // Check for TRULY in-progress test (with saved answers or time spent)
+      const [candidateTests] = await db.execute(
+        `SELECT ct.test_id, ct.start_time, ct.time_remaining, ct.saved_answers,
+         t.title, t.time_limit, t.test_type
+         FROM candidates_tests ct
+         INNER JOIN tests t ON ct.test_id = t.id
+         WHERE ct.candidate_id = ? 
+         AND ct.status = 'in_progress'
+         AND (ct.saved_answers IS NOT NULL OR TIMESTAMPDIFF(SECOND, ct.start_time, NOW()) > 5)
+         ORDER BY ct.start_time DESC
+         LIMIT 1`,
+        [userId]
+      );
+
+      if (candidateTests.length > 0) {
+        const activeTest = candidateTests[0];
+
+        // Double-check: Verify test is not already completed
+        const [results] = await db.execute(
+          "SELECT id FROM results WHERE candidate_id = ? AND test_id = ?",
+          [userId, activeTest.test_id]
+        );
+
+        if (results.length > 0) {
+          // Test already completed, clean up the stale record
+          await db.execute(
+            "UPDATE candidates_tests SET status = 'completed' WHERE candidate_id = ? AND test_id = ?",
+            [userId, activeTest.test_id]
+          );
+
+          return res.json({
+            success: true,
+            activeTest: null,
+          });
+        }
+
+        return res.json({
+          success: true,
+          activeTest: {
+            test_id: activeTest.test_id,
+            title: activeTest.title,
+            start_time: activeTest.start_time,
+            time_remaining: activeTest.time_remaining,
+            saved_answers: activeTest.saved_answers
+              ? JSON.parse(activeTest.saved_answers)
+              : {},
+            test_type: activeTest.test_type,
+          },
+        });
+      }
+
+      res.json({
+        success: true,
+        activeTest: null,
+      });
+    } catch (error) {
+      this.handleError(res, error);
+    }
+  }
   async getTestStatus(req, res) {
     try {
       const db = database.getPool();
