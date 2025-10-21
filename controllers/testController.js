@@ -652,6 +652,80 @@ async sendCompletionNotification(
     }
   }
 
+  // Add this method to your TestController class in testController.js
+
+async getActiveTest(req, res) {
+  try {
+    const db = database.getPool();
+    const userId = req.user.id;
+
+    // Check for any in-progress test (NOT completed)
+    const [activeTests] = await db.execute(
+      `SELECT 
+        ct.test_id, 
+        ct.start_time, 
+        ct.time_remaining,
+        ct.saved_answers,
+        ct.status,
+        t.title,
+        t.time_limit
+       FROM candidates_tests ct
+       INNER JOIN tests t ON ct.test_id = t.id
+       WHERE ct.candidate_id = ? 
+       AND ct.status = 'in_progress'
+       AND ct.time_remaining > 0
+       ORDER BY ct.start_time DESC 
+       LIMIT 1`,
+      [userId]
+    );
+
+    if (activeTests.length > 0) {
+      const activeTest = activeTests[0];
+      
+      // Double-check it's not completed via results table
+      const [results] = await db.execute(
+        "SELECT id FROM results WHERE candidate_id = ? AND test_id = ?",
+        [userId, activeTest.test_id]
+      );
+
+      // If result exists, the test is actually completed - clean up the status
+      if (results.length > 0) {
+        await db.execute(
+          "UPDATE candidates_tests SET status = 'completed' WHERE candidate_id = ? AND test_id = ?",
+          [userId, activeTest.test_id]
+        );
+        
+        return res.json({ 
+          success: true, 
+          activeTest: null 
+        });
+      }
+      
+      return res.json({
+        success: true,
+        activeTest: {
+          test_id: activeTest.test_id,
+          title: activeTest.title,
+          start_time: activeTest.start_time,
+          time_remaining: activeTest.time_remaining,
+          saved_answers: activeTest.saved_answers ? JSON.parse(activeTest.saved_answers) : {},
+          time_limit: activeTest.time_limit
+        }
+      });
+    }
+
+    res.json({ 
+      success: true, 
+      activeTest: null 
+    });
+  } catch (error) {
+    console.error('Error checking for active test:', error);
+    this.handleError(res, error);
+  }
+}
+
+// Make sure to export this method and add it to your routes file
+
   async getAnswerReview(req, res) {
     try {
       const db = database.getPool();
