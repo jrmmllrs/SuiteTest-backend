@@ -867,23 +867,82 @@ async update(req, res) {
   }
 }
 
-  async delete(req, res) {
-    try {
-      const { id: testId } = req.params;
+ async delete(req, res) {
+  const db = database.getPool();
+  const connection = await db.getConnection();
 
-      await this.authorizeTestAccess(req.user.id, testId, req.user.role);
+  try {
+    const { id: testId } = req.params;
 
-      const db = database.getPool();
-      await db.execute("DELETE FROM tests WHERE id = ?", [testId]);
+    // Authorization check
+    await this.authorizeTestAccess(req.user.id, testId, req.user.role);
 
-      res.json({
-        success: true,
-        message: "Test deleted successfully",
+    await connection.beginTransaction();
+
+    // Delete in proper order to maintain referential integrity
+    // 1. Delete answers first (references questions and candidates)
+    await connection.execute(
+      "DELETE FROM answers WHERE question_id IN (SELECT id FROM questions WHERE test_id = ?)",
+      [testId]
+    );
+
+    // 2. Delete proctoring events
+    await connection.execute(
+      "DELETE FROM proctoring_events WHERE test_id = ?",
+      [testId]
+    );
+
+    // 3. Delete test invitations
+    await connection.execute(
+      "DELETE FROM test_invitations WHERE test_id = ?",
+      [testId]
+    );
+
+    // 4. Delete candidates_tests (test progress/status)
+    await connection.execute(
+      "DELETE FROM candidates_tests WHERE test_id = ?",
+      [testId]
+    );
+
+    // 5. Delete results
+    await connection.execute(
+      "DELETE FROM results WHERE test_id = ?",
+      [testId]
+    );
+
+    // 6. Delete questions
+    await connection.execute(
+      "DELETE FROM questions WHERE test_id = ?",
+      [testId]
+    );
+
+    // 7. Finally, delete the test itself
+    const [deleteResult] = await connection.execute(
+      "DELETE FROM tests WHERE id = ?",
+      [testId]
+    );
+
+    if (deleteResult.affectedRows === 0) {
+      await connection.rollback();
+      return res.status(404).json({
+        success: false,
+        message: "Test not found or already deleted",
       });
-    } catch (error) {
-      this.handleError(res, error);
     }
+
+    await connection.commit();
+
+    res.json({
+      success: true,
+      message: "Test and all associated data deleted successfully",
+    });
+  } catch (error) {
+    await connection.rollback();
+    this.handleError(res, error);
+  } finally {
+    connection.release();
   }
+}
 
   // ============ Helper Methods ============
 
