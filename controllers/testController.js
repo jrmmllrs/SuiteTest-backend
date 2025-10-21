@@ -70,9 +70,9 @@ const SQL_QUERIES = {
    WHERE q.test_id = ?
    ORDER BY q.id`,
 
-  selectTestResults: `SELECT 
+selectTestResults: `SELECT 
     r.id, r.candidate_id, r.test_id, r.total_questions, r.correct_answers,
-    r.score, r.remarks, r.taken_at,
+    r.score, r.remarks, r.taken_at, r.finished_at,
     u.name as candidate_name, u.email as candidate_email
    FROM results r
    INNER JOIN users u ON r.candidate_id = u.id
