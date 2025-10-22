@@ -398,32 +398,137 @@ class TestController {
     }
   }
 
-  async getAllQuestions(req, res) {
+async getAllQuestions(req, res) {
   try {
     const db = database.getPool();
-    
-    // Get all questions with test information
-    const [questions] = await db.execute(
-      `SELECT 
-        q.id, 
-        q.test_id,
-        q.question_text, 
-        q.question_type, 
-        q.options, 
-        q.correct_answer, 
-        q.explanation,
-        q.created_at,
-        t.title as test_title,
-        t.test_type,
-        t.target_role
-       FROM questions q
-       LEFT JOIN tests t ON q.test_id = t.id
-       WHERE t.created_by = ? OR t.is_active = 1
-       ORDER BY q.created_at DESC`,
-      [req.user.id]
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    // 👉 Add this: check if the request is for the Question Bank
+    const isQuestionBank = req.query.source === "question-bank"; 
+
+    if (isQuestionBank) {
+      // 🔹 Always return questions from the Question Bank department only
+      const [questions] = await db.execute(`
+        SELECT 
+          q.id, 
+          q.test_id,
+          q.question_text, 
+          q.question_type, 
+          q.options, 
+          q.correct_answer, 
+          q.explanation,
+          q.created_at,
+          t.title AS test_title,
+          t.test_type,
+          t.target_role,
+          t.department_id,
+          d.department_name
+        FROM questions q
+        LEFT JOIN tests t ON q.test_id = t.id
+        LEFT JOIN departments d ON t.department_id = d.id
+        WHERE d.department_name = 'Question Bank'
+        AND t.is_active = 1
+        ORDER BY q.created_at DESC
+      `);
+
+      const enrichedQuestions = questions.map(q => ({
+        ...q,
+        options: this.parseOptions(q.options)
+      }));
+
+      return res.json({
+        success: true,
+        questions: enrichedQuestions
+      });
+    }
+
+    // 🔹 Existing logic below for admin/employer/candidate roles
+    const [userInfo] = await db.execute(
+      "SELECT department_id FROM users WHERE id = ?",
+      [userId]
     );
 
-    // Parse options for each question
+    if (userInfo.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    const userDepartmentId = userInfo[0].department_id;
+
+    let query;
+    let params;
+
+    if (userRole === 'admin') {
+      query = `
+        SELECT q.id, q.test_id, q.question_text, q.question_type, q.options, 
+               q.correct_answer, q.explanation, q.created_at, 
+               t.title AS test_title, t.test_type, t.target_role, 
+               t.department_id, d.department_name
+        FROM questions q
+        LEFT JOIN tests t ON q.test_id = t.id
+        LEFT JOIN departments d ON t.department_id = d.id
+        WHERE t.is_active = 1
+        ORDER BY q.created_at DESC
+      `;
+      params = [];
+    } else if (userRole === 'employer') {
+      if (userDepartmentId) {
+        query = `
+          SELECT q.id, q.test_id, q.question_text, q.question_type, q.options, 
+                 q.correct_answer, q.explanation, q.created_at, 
+                 t.title AS test_title, t.test_type, t.target_role, 
+                 t.department_id, d.department_name
+          FROM questions q
+          LEFT JOIN tests t ON q.test_id = t.id
+          LEFT JOIN departments d ON t.department_id = d.id
+          WHERE (t.created_by = ? OR t.department_id = ?) 
+          AND t.is_active = 1
+          ORDER BY q.created_at DESC
+        `;
+        params = [userId, userDepartmentId];
+      } else {
+        query = `
+          SELECT q.id, q.test_id, q.question_text, q.question_type, q.options, 
+                 q.correct_answer, q.explanation, q.created_at, 
+                 t.title AS test_title, t.test_type, t.target_role, 
+                 t.department_id, d.department_name
+          FROM questions q
+          LEFT JOIN tests t ON q.test_id = t.id
+          LEFT JOIN departments d ON t.department_id = d.id
+          WHERE t.created_by = ? AND t.is_active = 1
+          ORDER BY q.created_at DESC
+        `;
+        params = [userId];
+      }
+    } else {
+      if (!userDepartmentId) {
+        return res.json({
+          success: true,
+          questions: []
+        });
+      }
+
+      query = `
+        SELECT q.id, q.test_id, q.question_text, q.question_type, q.options, 
+               q.correct_answer, q.explanation, q.created_at, 
+               t.title AS test_title, t.test_type, t.target_role, 
+               t.department_id, d.department_name
+        FROM questions q
+        LEFT JOIN tests t ON q.test_id = t.id
+        LEFT JOIN departments d ON t.department_id = d.id
+        WHERE t.department_id = ? 
+        AND t.target_role = 'candidate'
+        AND t.is_active = 1
+        ORDER BY q.created_at DESC
+      `;
+      params = [userDepartmentId];
+    }
+
+    const [questions] = await db.execute(query, params);
+
     const enrichedQuestions = questions.map(q => ({
       ...q,
       options: this.parseOptions(q.options)
@@ -433,10 +538,12 @@ class TestController {
       success: true,
       questions: enrichedQuestions
     });
+
   } catch (error) {
     this.handleError(res, error);
   }
 }
+
   async getMyTests(req, res) {
     try {
       const db = database.getPool();
