@@ -398,6 +398,45 @@ class TestController {
     }
   }
 
+  async getAllQuestions(req, res) {
+  try {
+    const db = database.getPool();
+    
+    // Get all questions with test information
+    const [questions] = await db.execute(
+      `SELECT 
+        q.id, 
+        q.test_id,
+        q.question_text, 
+        q.question_type, 
+        q.options, 
+        q.correct_answer, 
+        q.explanation,
+        q.created_at,
+        t.title as test_title,
+        t.test_type,
+        t.target_role
+       FROM questions q
+       LEFT JOIN tests t ON q.test_id = t.id
+       WHERE t.created_by = ? OR t.is_active = 1
+       ORDER BY q.created_at DESC`,
+      [req.user.id]
+    );
+
+    // Parse options for each question
+    const enrichedQuestions = questions.map(q => ({
+      ...q,
+      options: this.parseOptions(q.options)
+    }));
+
+    res.json({
+      success: true,
+      questions: enrichedQuestions
+    });
+  } catch (error) {
+    this.handleError(res, error);
+  }
+}
   async getMyTests(req, res) {
     try {
       const db = database.getPool();

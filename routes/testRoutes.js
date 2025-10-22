@@ -16,6 +16,11 @@ router.get("/active-test", authMiddleware, (req, res) =>
   testController.getActiveTest(req, res)
 );
 
+// Get all questions from question bank - MUST be before /:id routes
+router.get("/questions/all", authMiddleware, (req, res) =>
+  testController.getAllQuestions(req, res)
+);
+
 // Create test
 router.post("/create", authMiddleware, (req, res) =>
   testController.create(req, res)
