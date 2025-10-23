@@ -47,17 +47,22 @@ const SQL_QUERIES = {
    WHERE t.target_role = ? AND t.is_active = 1
    ORDER BY t.created_at DESC`,
 
-  selectTestsForCandidate: `SELECT 
-    t.id, t.title, t.description, t.time_limit, t.created_at, t.department_id,
-    t.test_type, t.target_role,
-    t.pdf_url, t.google_drive_id, t.thumbnail_url,
-    d.department_name,
-    u.name as created_by_name
-   FROM tests t 
-   LEFT JOIN users u ON t.created_by = u.id
-   LEFT JOIN departments d ON t.department_id = d.id
-   WHERE t.target_role = 'candidate' AND t.is_active = 1 AND t.department_id = ?
-   ORDER BY t.created_at DESC`,
+selectTestsForCandidate: `SELECT 
+  t.id, t.title, t.description, t.time_limit, t.created_at, t.department_id,
+  t.test_type, t.target_role,
+  t.pdf_url, t.google_drive_id, t.thumbnail_url,
+  d.department_name,
+  u.name as created_by_name
+ FROM tests t 
+ LEFT JOIN users u ON t.created_by = u.id
+ LEFT JOIN departments d ON t.department_id = d.id
+ WHERE 
+   t.target_role = 'candidate' 
+   AND t.is_active = 1 
+   AND (d.is_active = 1 OR d.is_active IS NULL)
+   AND t.department_id = ?
+ ORDER BY t.created_at DESC`,
+
 
   selectQuestions: `SELECT id, question_text, question_type, options, correct_answer, explanation 
     FROM questions WHERE test_id = ? ORDER BY id`,

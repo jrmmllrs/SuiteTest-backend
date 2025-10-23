@@ -13,6 +13,7 @@ const proctoringRoutes = require("./routes/proctoringRoutes");
 const invitationRoutes = require("./routes/InvitationRoutes"); // NEW
 const questionTypeRoutes = require('./routes/questionTypeRoutes');
 const userRoutes = require('./routes/userRoutes'); // NEW: Add this line
+const departmentRoutes = require("./routes/departmentRoutes");
 
 
 
@@ -50,6 +51,8 @@ app.use("/api/proctoring", proctoringRoutes);
 app.use("/api/invitations", invitationRoutes); // NEW
 app.use('/api/question-types', questionTypeRoutes);
 app.use('/api/users', userRoutes); // NEW: Add this line
+app.use("/api/departments", departmentRoutes);
+
 
 // Health check
 app.get("/api/health", (req, res) => {
