@@ -201,86 +201,74 @@ class TestController {
   }
 
   // PART 1: Update getTestForTaking to record start time
-  async getTestForTaking(req, res) {
-    try {
-      const db = database.getPool();
-      const { id: testId } = req.params;
-      const userId = req.user.id;
+async getTestForTaking(req, res) {
+  try {
+    const db = database.getPool();
+    const { id: testId } = req.params;
+    const userId = req.user.id;
 
-      // Check if already completed
-      const [results] = await db.execute(
-        "SELECT id FROM results WHERE candidate_id = ? AND test_id = ?",
-        [userId, testId]
-      );
+    // Check if already completed
+    const [results] = await db.execute(
+      "SELECT id FROM results WHERE candidate_id = ? AND test_id = ?",
+      [userId, testId]
+    );
 
-      if (results.length > 0) {
-        return res.status(403).json({
-          success: false,
-          message: "You have already completed this test.",
-        });
-      }
-
-      const test = await this.getTestData(
-        testId,
-        SQL_QUERIES.selectTestsForTaking
-      );
-
-      // Verify role eligibility
-      if (test.target_role !== req.user.role) {
-        return res.status(403).json({
-          success: false,
-          message: `This test is only available for ${test.target_role}s`,
-        });
-      }
-
-      // If candidate, verify department access
-      if (req.user.role === "candidate" && test.department_id) {
-        const [userDept] = await db.execute(
-          "SELECT department_id FROM users WHERE id = ?",
-          [userId]
-        );
-
-        if (
-          userDept.length === 0 ||
-          userDept[0].department_id !== test.department_id
-        ) {
-          return res.status(403).json({
-            success: false,
-            message: "This test is not available for your department",
-          });
-        }
-      }
-
-      // **NEW: Create or update candidates_tests record with start_time**
-      const [existingTest] = await db.execute(
-        "SELECT id, start_time FROM candidates_tests WHERE candidate_id = ? AND test_id = ?",
-        [userId, testId]
-      );
-
-      if (existingTest.length === 0) {
-        // First time taking the test - record start time
-        await db.execute(
-          "INSERT INTO candidates_tests (candidate_id, test_id, start_time, status, time_remaining) VALUES (?, ?, NOW(), 'in_progress', ?)",
-          [userId, testId, test.time_limit * 60] // Convert minutes to seconds
-        );
-      }
-
-      const [questions] = await db.execute(
-        "SELECT id, question_text, question_type, options FROM questions WHERE test_id = ?",
-        [testId]
-      );
-
-      res.json({
-        success: true,
-        test: {
-          ...test,
-          questions: this.enrichWithParsedOptions(questions),
-        },
+    if (results.length > 0) {
+      return res.status(403).json({
+        success: false,
+        message: "You have already completed this test.",
       });
-    } catch (error) {
-      this.handleError(res, error);
     }
+
+    const test = await this.getTestData(
+      testId,
+      SQL_QUERIES.selectTestsForTaking
+    );
+
+    // Verify role eligibility
+    if (test.target_role !== req.user.role) {
+      return res.status(403).json({
+        success: false,
+        message: `This test is only available for ${test.target_role}s`,
+      });
+    }
+
+    // If candidate, verify department access
+    if (req.user.role === "candidate" && test.department_id) {
+      const [userDept] = await db.execute(
+        "SELECT department_id FROM users WHERE id = ?",
+        [userId]
+      );
+
+      if (
+        userDept.length === 0 ||
+        userDept[0].department_id !== test.department_id
+      ) {
+        return res.status(403).json({
+          success: false,
+          message: "This test is not available for your department",
+        });
+      }
+    }
+
+    // DON'T create candidates_tests record here - wait for explicit start
+
+    const [questions] = await db.execute(
+      "SELECT id, question_text, question_type, options FROM questions WHERE test_id = ?",
+      [testId]
+    );
+
+    res.json({
+      success: true,
+      test: {
+        ...test,
+        questions: this.enrichWithParsedOptions(questions),
+      },
+    });
+  } catch (error) {
+    this.handleError(res, error);
   }
+}
 
   // PART 2: Updated submitTest method
   async submitTest(req, res) {
